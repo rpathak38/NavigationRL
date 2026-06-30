@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: Navigation_RL
+Version: 1.0.0
+Summary: Navigation RL for Mini Cheetah using RaiSim
+Author: Rishi
+License: proprietary
+Requires-Dist: ruamel.yaml
+Requires-Dist: numpy
+Requires-Dist: torch
+Requires-Dist: tensorboard
+Requires-Dist: pygame
+Dynamic: author
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: summary

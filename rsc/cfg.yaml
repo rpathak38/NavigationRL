@@ -1,0 +1,39 @@
+seed: 1
+record_video: True
+
+environment:
+  render : True
+  num_envs: 128
+  num_threads: 32
+  eval_every_n : 500
+  simulation_dt: 0.001
+  control_dt: 0.01
+  max_time: 4.0
+  ob_dim: 147
+  value_ob_dim: 55
+  action_dim: 12
+  num_of_rewards: 4
+  port_num: 24682
+  nav_ob_dim: 404
+  nav_grid_x: 20
+  nav_grid_y: 20
+  nav_grid_spacing: 0.25
+  nav_ray_height: 5.0
+  randomization:
+    observation_randomization: True
+    joint_friction_randomization: True
+    delay_randomization: True
+    gain_randomization: True
+  rewardCoeff:
+    command_tracking_reward_coeff: 0.375
+    base_motion_reward_coeff: -0.5
+    torque_reward_coeff: -4e-4
+    real_command_tracking_reward_coeff: 1.0
+  curriculum:
+    iteration_per_update: 10
+    terrain_initial_factor: 0.003
+    terrain_decay_factor: 0.989
+
+architecture:
+  policy_net: [512, 256, 64]
+  value_net: [512, 256, 64]
