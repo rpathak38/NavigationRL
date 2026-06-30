@@ -1,0 +1,8 @@
+.idea/*
+.opencode/*
+thirdparty/*
+data/*
+build/*
+*.ini
+*.so
+*.pyc

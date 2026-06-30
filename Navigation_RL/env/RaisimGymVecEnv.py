@@ -27,6 +27,8 @@ class RaisimGymVecEnv:
         self.nav_obs_rms = RunningMeanStd(shape=[self.num_envs, self.num_nav_obs])
         self._reward = np.zeros(self.num_envs, dtype=np.float32)
         self._done = np.zeros(self.num_envs, dtype=bool)
+        self._nav_reward = np.zeros(self.num_envs, dtype=np.float32)
+        self._nav_done = np.zeros(self.num_envs, dtype=bool)
         self._rewards = np.zeros([self.num_envs, self.num_rewards], dtype=np.float32)
         self._rewards_stdev = np.zeros(self.num_rewards, dtype=np.float32)
 
@@ -50,6 +52,10 @@ class RaisimGymVecEnv:
 
     def nav_reset(self):
         self.wrapper.navReset()
+
+    def nav_step(self, command_vel):
+        self.wrapper.navStep(command_vel, self._nav_reward, self._nav_done)
+        return self._nav_reward.copy(), self._nav_done.copy()
 
     def turn_on_visualization(self):
         self.wrapper.turnOnVisualization()

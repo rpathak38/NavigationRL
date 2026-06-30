@@ -135,6 +135,42 @@ class ENVIRONMENT {
   void init() { }
 
   // Nav Suite
+  float navStep(const Eigen::Ref<EigenVec>& command_vel) {
+    command_[0] = command_vel[0];
+    command_[1] = command_vel[1];
+    command_[2] = command_vel[2];
+    return 0.f;
+  }
+
+  bool isNavTerminal(float& terminalReward) {
+    terminalReward = 0.f;
+
+    // robot fell: body contact with non-foot link
+    for (auto& contact : robot_->getContacts()) {
+      if (contact.skip()) continue;
+      if (std::find(footIndices_.begin(), footIndices_.end(), contact.getlocalBodyIndex()) == footIndices_.end()) {
+        return true;
+      }
+    }
+
+    // robot fell: tilt > 70 deg
+    if (acos(rot_(8)) * 180 / M_PI > 70) {
+      return true;
+    }
+
+    // goal reached
+    if (goalSet_) {
+      updateObservation();
+      double dx = goal_[0] - gc_[0], dy = goal_[1] - gc_[1];
+      if (std::sqrt(dx * dx + dy * dy) < 0.2) {
+        terminalReward = 10.f;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   void navObserve(Eigen::Ref<EigenVec> ob) {
     updateObservation();
 
@@ -201,6 +237,8 @@ class ENVIRONMENT {
 
   void navReset() {
     reset();
+    robot_->getState(gc_, gv_);
+    command_.setZero();
 
     double angle = 2 * M_PI * uniDist_(gen_);
     double dist = 3.0 + 5.0 * uniDist_(gen_);

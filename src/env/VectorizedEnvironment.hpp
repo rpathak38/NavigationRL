@@ -87,6 +87,14 @@ namespace raisim {
 
         int getNavObDim() { return environments_[0]->getNavObDim(); }
 
+        void navStep(Eigen::Ref<EigenRowMajorMat> command_vel,
+                     Eigen::Ref<EigenVec> reward,
+                     Eigen::Ref<EigenBoolVec> done) {
+#pragma omp parallel for schedule(auto)
+          for (int i = 0; i < num_envs_; i++)
+            perAgentNavStep(i, command_vel, reward, done);
+        }
+
         void step(Eigen::Ref<EigenRowMajorMat> action,
                   Eigen::Ref<EigenVec> reward,
                   Eigen::Ref<EigenBoolVec> done) {
@@ -165,19 +173,26 @@ namespace raisim {
 
     private:
 
+      inline void perAgentNavStep(int agentId,
+                               Eigen::Ref<EigenRowMajorMat> command_vel,
+                               Eigen::Ref<EigenVec> reward,
+                               Eigen::Ref<EigenBoolVec> done) {
+        reward[agentId] = environments_[agentId]->navStep(command_vel.row(agentId).transpose());
+
+        float terminalReward = 0;
+        done[agentId] = environments_[agentId]->isNavTerminal(terminalReward);
+
+        if (done[agentId]) {
+          environments_[agentId]->navReset();
+          reward[agentId] += terminalReward;
+        }
+      }
+
       inline void perAgentStep(int agentId,
                                Eigen::Ref<EigenRowMajorMat> action,
                                Eigen::Ref<EigenVec> reward,
                                Eigen::Ref<EigenBoolVec> done) {
         reward[agentId] = environments_[agentId]->step(action.row(agentId));
-
-        float terminalReward = 0;
-        done[agentId] = environments_[agentId]->isTerminal(terminalReward);
-
-        if (done[agentId]) {
-          environments_[agentId]->reset();
-          reward[agentId] += terminalReward;
-        }
       }
 
         std::vector<ChildEnvironment *> environments_;

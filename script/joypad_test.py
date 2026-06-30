@@ -63,9 +63,10 @@ env.load_scaling(weight_path, policy)
 
 
 env.nav_reset()
+for _ in range(10):
+    env.step(np.zeros((1, 12), dtype=np.float32))
 command = [0, 0, 0]
-nav_command = [0.0, 0.0, 0.0]
-nav_counter = 0
+nav_counter = 10
 nav_auto = False  # toggle with button 2
 for step in range(n_steps * 100000):
     for event in pygame.event.get():
@@ -73,6 +74,9 @@ for step in range(n_steps * 100000):
             if event.button == 1:
                 env.map_change()
                 env.nav_reset()
+                for _ in range(10):
+                    env.step(np.zeros((1, 12), dtype=np.float32))
+                nav_counter = 10
                 print("env reset")
             if event.button == 2:
                 nav_auto = not nav_auto
@@ -83,20 +87,23 @@ for step in range(n_steps * 100000):
         nav_obs = env.nav_observe(False)
         # with torch.no_grad():
         #     nav_action = loaded_nav_graph.architecture(torch.from_numpy(nav_obs).to(device))
-        # nav_command = nav_action.cpu().detach().numpy().flatten().tolist()
-        #
-        # if nav_auto:
-        #     command = nav_command
-        # else:
-        if len(joysticks) > 0:
+        # command = nav_action.cpu().detach().numpy().flatten().tolist()
+        if not nav_auto and len(joysticks) > 0:
             command[0] = - joysticks[0].get_axis(1)  # left stick Y = forward/back
             command[1] = - joysticks[0].get_axis(0)  # left stick X = left/right
             command[2] = - joysticks[0].get_axis(3)  # right stick X = yaw
 
-    env.set_command(np.float32(command).transpose())
+        # nav step: stores command, returns reward + done
+        nav_reward, nav_done = env.nav_step(np.float32(command).reshape(1, -1))
+        if nav_done.any():
+            for _ in range(10):
+                env.step(np.zeros((1, 12), dtype=np.float32))
+            nav_counter = 10
+            print(f"nav done! reward={nav_reward}")
 
+    # Locomotion policy (every step, 10x per nav cycle)
     obs = env.observe(False)
     network_action = loaded_graph.architecture(torch.from_numpy(obs).to(device))
-    _, dones = env.step(network_action.cpu().detach().numpy())
+    env.step(network_action.cpu().detach().numpy())
     nav_counter += 1
     time.sleep(cfg['environment']['control_dt'])
