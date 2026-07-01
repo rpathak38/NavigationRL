@@ -8,6 +8,10 @@ Navigation_RL.egg-info/requires.txt
 Navigation_RL.egg-info/top_level.txt
 Navigation_RL/algo/DAGGER.py
 Navigation_RL/algo/__init__.py
+Navigation_RL/algo/nav_ppo/__init__.py
+Navigation_RL/algo/nav_ppo/module.py
+Navigation_RL/algo/nav_ppo/ppo.py
+Navigation_RL/algo/nav_ppo/storage.py
 Navigation_RL/algo/ppo/__init__.py
 Navigation_RL/algo/ppo/module.py
 Navigation_RL/algo/ppo/noise_storage.py

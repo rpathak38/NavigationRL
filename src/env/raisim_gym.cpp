@@ -46,5 +46,6 @@ NB_MODULE(RAISIMGYM_TORCH_ENV_NAME, m) {
           .def("navObserve", &VectorizedEnvironment<ENVIRONMENT>::navObserve)
           .def("navReset", &VectorizedEnvironment<ENVIRONMENT>::navReset)
           .def("getNavObDim", &VectorizedEnvironment<ENVIRONMENT>::getNavObDim)
-          .def("navStep", &VectorizedEnvironment<ENVIRONMENT>::navStep);
+          .def("navStep", &VectorizedEnvironment<ENVIRONMENT>::navStep)
+          .def("getNavRewards", &VectorizedEnvironment<ENVIRONMENT>::getNavRewards);
 }

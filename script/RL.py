@@ -187,6 +187,7 @@ for update in range(num_iterations + 1):
         for i in range(env.num_rewards):
             various_rewards_sum[i, 0] = various_rewards_sum[i, 0] + sum(various_rewards_mean[:, i])
 
+
     average_ll_performance = reward_ll_sum / total_steps
     average_real_ll_performance = real_reward_ll_sum / total_steps
     average_dones = done_sum / total_steps

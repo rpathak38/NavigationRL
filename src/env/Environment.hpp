@@ -98,7 +98,7 @@ class ENVIRONMENT {
 
     /// create heightmap
     heightMap_ = terrainGenerator_.generateTerrain(&world_,
-                                                   RandomHeightMapGenerator::GroundType((int) floor(uniDist_(gen_) * 4.0)),
+                                                   RandomHeightMapGenerator::GroundType((int) floor(uniDist_(gen_) * 2.0)),
                                                    0., gen_, uniDist_);
 
     /// visualize if it is the first environment
@@ -123,8 +123,13 @@ class ENVIRONMENT {
     navGridY_ = cfg["nav_grid_y"].template As<int>();
     navGridSpacing_ = cfg["nav_grid_spacing"].template As<double>();
     navRayHeight_ = cfg["nav_ray_height"].template As<double>();
+    navCmdHistoryK_ = cfg["nav_cmd_history_k"].template As<int>();
     navObDim_ = cfg["nav_ob_dim"].template As<int>();
     navObDouble_.setZero(navObDim_);
+    navCmdHistory_.setZero(navCmdHistoryK_ * 3);
+    navGoalReachingCoeff_ = cfg["nav_reward_coeff"]["goal_reaching"].template As<double>();
+    navDeathPenaltyCoeff_ = cfg["nav_reward_coeff"]["death_penalty"].template As<double>();
+    navIncrementalDistCoeff_ = cfg["nav_reward_coeff"]["incremental_dist"].template As<double>();
     goal_.setZero();
     goalSet_ = false;
     navVisualsCreated_ = false;
@@ -136,25 +141,38 @@ class ENVIRONMENT {
 
   // Nav Suite
   float navStep(const Eigen::Ref<EigenVec>& command_vel) {
+    // Shift command history: move newer commands to older positions
+    navCmdHistory_.head((navCmdHistoryK_ - 1) * 3) = navCmdHistory_.tail((navCmdHistoryK_ - 1) * 3);
+    // Append newest command at the end
+    navCmdHistory_.segment((navCmdHistoryK_ - 1) * 3, 3) = command_vel.cast<double>();
+
     command_[0] = command_vel[0];
     command_[1] = command_vel[1];
     command_[2] = command_vel[2];
-    return 0.f;
+
+    updateNavReward();
+    return navGoalDistReward_;
   }
 
   bool isNavTerminal(float& terminalReward) {
     terminalReward = 0.f;
+    navGoalReachingReward_ = 0.f;
+    navDeathPenalty_ = 0.f;
 
     // robot fell: body contact with non-foot link
     for (auto& contact : robot_->getContacts()) {
       if (contact.skip()) continue;
       if (std::find(footIndices_.begin(), footIndices_.end(), contact.getlocalBodyIndex()) == footIndices_.end()) {
+        terminalReward = navDeathPenaltyCoeff_;
+        navDeathPenalty_ = navDeathPenaltyCoeff_;
         return true;
       }
     }
 
     // robot fell: tilt > 70 deg
     if (acos(rot_(8)) * 180 / M_PI > 70) {
+      terminalReward = navDeathPenaltyCoeff_;
+      navDeathPenalty_ = navDeathPenaltyCoeff_;
       return true;
     }
 
@@ -163,7 +181,8 @@ class ENVIRONMENT {
       updateObservation();
       double dx = goal_[0] - gc_[0], dy = goal_[1] - gc_[1];
       if (std::sqrt(dx * dx + dy * dy) < 0.2) {
-        terminalReward = 10.f;
+        terminalReward = navGoalReachingCoeff_;
+        navGoalReachingReward_ = navGoalReachingCoeff_;
         return true;
       }
     }
@@ -205,6 +224,11 @@ class ENVIRONMENT {
       idx += 4;
     }
 
+    // Command history
+    for (int k = 0; k < navCmdHistoryK_ * 3; k++) {
+      navObDouble_[idx++] = navCmdHistory_[k];
+    }
+
     if (visualizable_ && server_) {
       if (!navVisualsCreated_) {
         for (int k = 0; k < navGridX_ * navGridY_; k++) {
@@ -239,13 +263,37 @@ class ENVIRONMENT {
     reset();
     robot_->getState(gc_, gv_);
     command_.setZero();
+    navCmdHistory_.setZero();
 
-    double angle = 2 * M_PI * uniDist_(gen_);
-    double dist = 3.0 + 5.0 * uniDist_(gen_);
-    goal_[0] = gc_[0] + dist * std::cos(angle);
-    goal_[1] = gc_[1] + dist * std::sin(angle);
+    double mapHalfSize = 5.25;
+
+    // Randomize start position within map
+    gc_[0] = (2.0 * uniDist_(gen_) - 1.0) * mapHalfSize;
+    gc_[1] = (2.0 * uniDist_(gen_) - 1.0) * mapHalfSize;
+    gc_[2] = heightMap_->getHeight(gc_[0], gc_[1]) + 0.25;
+    robot_->setState(gc_, gv_);
+
+    // Foot placement adjustment (same logic as reset())
+    raisim::Vec<3> footPosition;
+    double maxNecessaryShift = -1e20;
+    for (auto& foot : footFrameIndices_) {
+      robot_->getFramePosition(foot, footPosition);
+      double terrainHeightMinusFootPosition = heightMap_->getHeight(footPosition(0), footPosition(1)) - footPosition(2);
+      maxNecessaryShift = maxNecessaryShift > terrainHeightMinusFootPosition ? maxNecessaryShift : terrainHeightMinusFootPosition;
+    }
+    gc_[2] += maxNecessaryShift;
+    robot_->setState(gc_, gv_);
+
+    // Randomize goal position within map
+    goal_[0] = (2.0 * uniDist_(gen_) - 1.0) * mapHalfSize;
+    goal_[1] = (2.0 * uniDist_(gen_) - 1.0) * mapHalfSize;
     goal_[2] = heightMap_->getHeight(goal_[0], goal_[1]);
     goalSet_ = true;
+
+    // Reset reward state
+    double dx = goal_[0] - gc_[0], dy = goal_[1] - gc_[1];
+    navPrevGoalDist_ = std::sqrt(dx*dx + dy*dy);
+    navGoalDistReward_ = 0;
 
     if (visualizable_ && goalSphere_) {
       goalSphere_->setPosition(goal_[0], goal_[1], goal_[2] + 0.1);
@@ -253,6 +301,26 @@ class ENVIRONMENT {
   }
 
   int getNavObDim() const { return navObDim_; }
+
+  void updateNavReward() {
+    if (goalSet_) {
+      updateObservation();
+      double dx = goal_[0] - gc_[0], dy = goal_[1] - gc_[1];
+      double dist = std::sqrt(dx*dx + dy*dy);
+      double deltaDist = navPrevGoalDist_ - dist;
+      navGoalDistReward_ = navIncrementalDistCoeff_ * deltaDist;
+      navPrevGoalDist_ = dist;
+    } else {
+      navGoalDistReward_ = 0;
+    }
+  }
+
+  void getNavRewards(Eigen::Ref<EigenVec> rewards) {
+    Eigen::VectorXd re(4);
+    re << navGoalDistReward_, navGoalReachingReward_, navDeathPenalty_,
+          navGoalDistReward_ + navGoalReachingReward_ + navDeathPenalty_;
+    rewards = re.cast<float>();
+  }
 
   void resetForTest(double frictionCoeff) {
     /// randomize generalized coordinates
@@ -629,7 +697,7 @@ class ENVIRONMENT {
     terrainCurriculumFactor_ = std::pow(terrainCurriculumFactor_, terrainCurriculumDecayFactor_);
 
     world_.removeObject(heightMap_);
-    auto groundType = RandomHeightMapGenerator::GroundType((int) floor(uniDist_(gen_) * 4.2));
+    auto groundType = RandomHeightMapGenerator::GroundType((int) floor(uniDist_(gen_) * 2.0));
     heightMap_ = terrainGenerator_.generateTerrain(&world_,
                                                    groundType,
                                                    terrainCurriculumFactor_, gen_, uniDist_);
@@ -637,7 +705,7 @@ class ENVIRONMENT {
 
   void mapChange() {
     world_.removeObject(heightMap_);
-    auto groundType = RandomHeightMapGenerator::GroundType(groundType_++ % 5);
+    auto groundType = RandomHeightMapGenerator::GroundType(groundType_++ % 2);
     heightMap_ = terrainGenerator_.generateTerrain(&world_,
                                                    groundType,
                                                    terrainCurriculumFactor_, gen_, uniDist_);
@@ -740,12 +808,23 @@ class ENVIRONMENT {
   int navGridX_ = 20, navGridY_ = 20;
   double navGridSpacing_ = 0.25;
   double navRayHeight_ = 5.0;
+  int navCmdHistoryK_ = 5;
+  Eigen::VectorXd navCmdHistory_;
   Eigen::VectorXd navObDouble_;
   raisim::Vec<3> goal_;
   bool goalSet_ = false;
   bool navVisualsCreated_ = false;
   std::vector<raisim::Visuals*> gridSpheres_;
   raisim::Visuals* goalSphere_ = nullptr;
+
+  /// nav rewards
+  double navGoalReachingCoeff_ = 1.0;
+  double navDeathPenaltyCoeff_ = -0.5;
+  double navIncrementalDistCoeff_ = 0.01;
+  double navGoalDistReward_ = 0;
+  double navPrevGoalDist_ = 0;
+  double navGoalReachingReward_ = 0;
+  double navDeathPenalty_ = 0;
 
   std::mt19937 gen_;
   std::normal_distribution<double> normDist_{0., 1.};

@@ -51,8 +51,8 @@ class RandomHeightMapGenerator {
       case GroundType::HEIGHT_MAP:
         terrainProperties_.frequency = 1.0;
         terrainProperties_.zScale = targetRoughness * curriculumFactor;
-        terrainProperties_.xSize = 12.0;
-        terrainProperties_.ySize = 12.0;
+        terrainProperties_.xSize = 12.5;
+        terrainProperties_.ySize = 12.5;
         terrainProperties_.xSamples = 60;
         terrainProperties_.ySamples = 60;
         terrainProperties_.fractalOctaves = 5;
@@ -62,14 +62,25 @@ class RandomHeightMapGenerator {
         terrainProperties_.stepSize = 0.;
         genPtr = std::make_unique<raisim::TerrainGenerator>(terrainProperties_);
         heightVec = genPtr->generatePerlinFractalTerrain();
+        { // wall: 2 cells thick, +1m height at borders
+          int wallCells = 2;
+          for (int i = 0; i < (int)terrainProperties_.xSamples; i++) {
+            for (int j = 0; j < (int)terrainProperties_.ySamples; j++) {
+              if (i < wallCells || i >= (int)terrainProperties_.xSamples - wallCells ||
+                  j < wallCells || j >= (int)terrainProperties_.ySamples - wallCells) {
+                heightVec[i * terrainProperties_.ySamples + j] += 1.0;
+              }
+            }
+          }
+        }
         return world->addHeightMap(terrainProperties_.xSamples, terrainProperties_.ySamples, terrainProperties_.xSize, terrainProperties_.ySize, 0., 0., heightVec);
         break;
 
       case GroundType::HEIGHT_MAP_DISCRETE:
         terrainProperties_.frequency = 0.6;
         terrainProperties_.zScale = targetRoughness * curriculumFactor;
-        terrainProperties_.xSize = 12.0;
-        terrainProperties_.ySize = 12.0;
+        terrainProperties_.xSize = 12.5;
+        terrainProperties_.ySize = 12.5;
         terrainProperties_.xSamples = 60;
         terrainProperties_.ySamples = 60;
         terrainProperties_.fractalOctaves = 3;
@@ -79,7 +90,17 @@ class RandomHeightMapGenerator {
         terrainProperties_.stepSize = 0.06 * curriculumFactor;
         genPtr = std::make_unique<raisim::TerrainGenerator>(terrainProperties_);
         heightVec = genPtr->generatePerlinFractalTerrain();
-
+        { // wall: 2 cells thick, +1m height at borders
+          int wallCells = 2;
+          for (int i = 0; i < (int)terrainProperties_.xSamples; i++) {
+            for (int j = 0; j < (int)terrainProperties_.ySamples; j++) {
+              if (i < wallCells || i >= (int)terrainProperties_.xSamples - wallCells ||
+                  j < wallCells || j >= (int)terrainProperties_.ySamples - wallCells) {
+                heightVec[i * terrainProperties_.ySamples + j] += 1.0;
+              }
+            }
+          }
+        }
         return world->addHeightMap(terrainProperties_.xSamples, terrainProperties_.ySamples, terrainProperties_.xSize, terrainProperties_.ySize, 0., 0., heightVec);
         break;
 

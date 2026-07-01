@@ -87,6 +87,12 @@ namespace raisim {
 
         int getNavObDim() { return environments_[0]->getNavObDim(); }
 
+        void getNavRewards(Eigen::Ref<EigenRowMajorMat> rewards) {
+#pragma omp parallel for schedule(auto)
+          for (int i = 0; i < num_envs_; i++)
+            environments_[i]->getNavRewards(rewards.row(i));
+        }
+
         void navStep(Eigen::Ref<EigenRowMajorMat> command_vel,
                      Eigen::Ref<EigenVec> reward,
                      Eigen::Ref<EigenBoolVec> done) {

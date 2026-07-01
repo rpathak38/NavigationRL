@@ -29,6 +29,7 @@ class RaisimGymVecEnv:
         self._done = np.zeros(self.num_envs, dtype=bool)
         self._nav_reward = np.zeros(self.num_envs, dtype=np.float32)
         self._nav_done = np.zeros(self.num_envs, dtype=bool)
+        self._nav_rewards = np.zeros([self.num_envs, 4], dtype=np.float32)  # [incremental, goal, death, total]
         self._rewards = np.zeros([self.num_envs, self.num_rewards], dtype=np.float32)
         self._rewards_stdev = np.zeros(self.num_rewards, dtype=np.float32)
 
@@ -56,6 +57,10 @@ class RaisimGymVecEnv:
     def nav_step(self, command_vel):
         self.wrapper.navStep(command_vel, self._nav_reward, self._nav_done)
         return self._nav_reward.copy(), self._nav_done.copy()
+
+    def get_nav_rewards(self):
+        self.wrapper.getNavRewards(self._nav_rewards)
+        return self._nav_rewards.copy()
 
     def turn_on_visualization(self):
         self.wrapper.turnOnVisualization()

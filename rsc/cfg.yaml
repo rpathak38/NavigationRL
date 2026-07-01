@@ -8,17 +8,22 @@ environment:
   eval_every_n : 500
   simulation_dt: 0.001
   control_dt: 0.01
-  max_time: 4.0
+  max_time: 30.0
   ob_dim: 147
   value_ob_dim: 55
   action_dim: 12
   num_of_rewards: 4
   port_num: 24682
-  nav_ob_dim: 404
+  nav_ob_dim: 419
   nav_grid_x: 20
   nav_grid_y: 20
   nav_grid_spacing: 0.25
   nav_ray_height: 5.0
+  nav_cmd_history_k: 5
+  nav_reward_coeff:
+    goal_reaching: 4.0
+    death_penalty: -0.5
+    incremental_dist: 0.3
   randomization:
     observation_randomization: True
     joint_friction_randomization: True
@@ -37,3 +42,5 @@ environment:
 architecture:
   policy_net: [512, 256, 64]
   value_net: [512, 256, 64]
+  nav_policy_net: [128, 128, 128]
+  nav_value_net: [128, 128, 128]
